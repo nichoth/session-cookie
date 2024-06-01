@@ -22,10 +22,15 @@
     "postversion": "git push --follow-tags && npm publish",
     "prepublishOnly": "npm run build"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@netlify/functions": "^2.7.0",
+    "cookie": "^0.6.0",
+    "keygrip": "^1.1.0",
+    "rewire": "^7.0.0"
+  },
   "devDependencies": {
-    "@bicycle-codes/tapzero": "^0.9.3",
     "@bicycle-codes/debug": "^0.6.8",
+    "@bicycle-codes/tapzero": "^0.9.3",
     "@preact/preset-vite": "^2.8.2",
     "@typescript-eslint/eslint-plugin": "^7.9.0",
     "@typescript-eslint/parser": "^7.9.0",
