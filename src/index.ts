@@ -1,17 +1,37 @@
 import crypto from 'crypto'
-import { Handler, HandlerResponse } from '@netlify/functions'
-import cookie from 'cookie'
-import Keygrip from 'keygrip'
+import {
+    Handler,
+    HandlerContext,
+    HandlerEvent,
+    HandlerResponse
+} from '@netlify/functions'
+// import cookie from 'cookie'
+import { timeSafeCompare as compare, serializeCookie } from './util.js'
 
-// export function verify (keys, data, digest) {
-//     for (let i = 0, l = keys.length; i < l; i++) {
-//         if (compare(digest, sign(data, keys[i]))) {
-//             return i
-//         }
-//     }
+export function verify (keys:string[], data:Buffer|string, signature:string) {
+    for (let i = 0, l = keys.length; i < l; i++) {
+        if (compare(signature, sign(data, keys[i]))) {
+            return i
+        }
+    }
 
-//     return -1
-// }
+    return -1
+}
+
+function sign (data:Buffer|string, key:string, opts?:Partial<{
+    algorithm:'sha1'|'sha256'|'sha512';
+    encoding:crypto.BinaryToTextEncoding;
+}>) {
+    const algorithm = opts?.algorithm || 'sha1'
+    const encoding = opts?.encoding || 'base64'
+
+    return crypto
+        .createHmac(algorithm, key)
+        .update(data).digest(encoding)
+        .replace(/\/|\+|=/g, (x) => {
+            return ({ '/': '_', '+': '-', '=': '' })[x] as string
+        })
+}
 
 /**
  * Name to be used for the session cookie if none provided.
@@ -124,11 +144,15 @@ export function generateSecretKey () {
  * @returns {Object} - Altered `response` received from `handler`.
  * @private
  */
-async function sessionWrapper (this:Handler, event, context) {
+async function sessionWrapper (
+    this:Handler,
+    event:HandlerEvent,
+    context:HandlerContext
+) {
     const cookieName = getCookieName()
-    const secretKey = new Keygrip([getSecretKey()], 'sha256', 'base64')
+    // const secretKey = new Keygrip([getSecretKey()], 'sha256', 'base64')
 
-    let incomingCookies:string[]|null = null
+    let incomingCookies:string[]|Record<string, string>|null = null
     let response:null|HandlerResponse = null
 
     const session = getSession(context) // Holds the current state of session data.
@@ -147,7 +171,7 @@ async function sessionWrapper (this:Handler, event, context) {
 
     // Parse cookies, if any
     if (incomingCookies) {
-        incomingCookies = cookie.parse(incomingCookies[0])
+        incomingCookies = parseCookie(incomingCookies[0])
     }
 
     // Grab, validate and parse session data from cookie
@@ -161,7 +185,7 @@ async function sessionWrapper (this:Handler, event, context) {
         data = Buffer.from(data, 'base64').toString('utf-8')
 
         // If signature matches, parse data from JSON and put into the `clientContext.session` object.
-        if (secretKey.verify(data, signature)) {
+        if (verify([getSecretKey()], data, signature)) {
             data = JSON.parse(data)
             for (const [key, value] of Object.entries(data)) { // Update in place to preserve `session` ref.
                 session[key] = value
@@ -200,11 +224,11 @@ async function sessionWrapper (this:Handler, event, context) {
     // Sign session data and add it to `Set-Cookie`.
     const sessionAsJSON = JSON.stringify(session)
     // session=[signature][data];
-    const cookieValue = secretKey.sign(sessionAsJSON) +
+    const cookieValue = sign(sessionAsJSON, getSecretKey()) +
         Buffer.from(sessionAsJSON).toString('base64');
 
     (response.multiValueHeaders['Set-Cookie'] as (string|boolean|void)[]).push(
-        cookie.serialize(cookieName, cookieValue, getCookieOptions())
+        serializeCookie(cookieName, cookieValue, getCookieOptions())
     )
 
     return response
@@ -337,9 +361,8 @@ function getCookieOptions () {
  * The key must be at least 32 bytes long.
  *
  * @returns {string} - Key to be used to sign cookies
- * @private
  */
-function getSecretKey () {
+function getSecretKey ():string {
     const secret = process.env.SESSION_COOKIE_SECRET
     let secretLength = 0
 
@@ -353,4 +376,82 @@ function getSecretKey () {
     }
 
     return secret
+}
+
+/**
+ * Parse a cookie header.
+ *
+ * Parse the given cookie header string into an object.
+ * The object has the various cookies as keys(names) => values
+ */
+function parseCookie (str:string, options?:Partial<{
+    decode
+}>):Record<string, string> {
+    const obj = {}
+    const dec = options?.decode || decode
+
+    let index = 0
+    while (index < str.length) {
+        const eqIdx = str.indexOf('=', index)
+
+        // no more cookie pairs
+        if (eqIdx === -1) {
+            break
+        }
+
+        let endIdx = str.indexOf(';', index)
+
+        if (endIdx === -1) {
+            endIdx = str.length
+        } else if (endIdx < eqIdx) {
+            // backtrack on prior semicolon
+            index = str.lastIndexOf(';', eqIdx - 1) + 1
+            continue
+        }
+
+        const key = str.slice(index, eqIdx).trim()
+
+        // only assign once
+        if (obj[key] === undefined) {
+            let val = str.slice(eqIdx + 1, endIdx).trim()
+
+            // quoted values
+            if (val.charCodeAt(0) === 0x22) {
+                val = val.slice(1, -1)
+            }
+
+            obj[key] = tryDecode(val, dec)
+        }
+
+        index = endIdx + 1
+    }
+
+    return obj
+}
+
+/**
+ * URL-decode string value. Optimized to skip native call when no %.
+ *
+ * @param {string} str
+ * @returns {string}
+ */
+function decode (str:string):string {
+    return str.indexOf('%') !== -1 ?
+        decodeURIComponent(str) :
+        str
+}
+
+/**
+ * Try decoding a string using a decoding function.
+ *
+ * @param {string} str
+ * @param {function} decode
+ * @private
+ */
+function tryDecode (str:string, decode:(string)=>string):string {
+    try {
+        return decode(str)
+    } catch (e) {
+        return str
+    }
 }

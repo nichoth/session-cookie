@@ -12,6 +12,7 @@
     "@typescript-eslint"
   ],
   "rules": {
+    "no-control-regex": "off",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/no-unused-vars": [
       "error",
