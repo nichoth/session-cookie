@@ -21,7 +21,7 @@ const SESSION_COOKIE_NAME_DEFAULT = 'session'
  * Length of the signature digest, in characters.
  * Used to separate signature from data in the raw session cookie.
  */
-const SIGNATURE_DIGEST_LENGTH = 43
+const SIGNATURE_DIGEST_LENGTH = 27
 
 export function getCookiesFromEvent (ev:HandlerEvent):string[]|undefined {
     // Grab cookies from header
@@ -35,7 +35,7 @@ export function getCookiesFromEvent (ev:HandlerEvent):string[]|undefined {
 
 /**
  * This verifies that the signature in the cookie is valid.
- * Does not check expiration.
+ * Does not check expiration or other properties.
  * @returns {boolean}
  */
 export function verifyCookieFromEvent (ev:HandlerEvent):boolean {
@@ -58,10 +58,12 @@ export function verifyCookieFromEvent (ev:HandlerEvent):boolean {
 
         // Data: everything after the signature. Needs to be decoded from base64,
         // parsed from JSON.
+        // index sig_deg_lenth -> end
         let data:string = cookieMap[cookieName].substring(SIGNATURE_DIGEST_LENGTH)
         data = Buffer.from(data, 'base64').toString('utf-8')
 
         // if signature matches, return true, because it is valid
+        // (key, data, signature)
         return verify(getSecretKey(), data, signature)
     }
 
@@ -69,107 +71,82 @@ export function verifyCookieFromEvent (ev:HandlerEvent):boolean {
 }
 
 /**
+ * Given an encoded signature + data string, return if the signature is
+ * valid for the data.
+ * @param {string} session The encoded session cookie
+ * @returns {boolean}
+ */
+export function verifySessionString (session:string):boolean {
+    const signature = session.substring(
+        0,
+        SIGNATURE_DIGEST_LENGTH
+    )
+
+    const data:string = session.substring(SIGNATURE_DIGEST_LENGTH)
+
+    return verify(getSecretKey(), data, signature)
+}
+
+export function parseSession<T=object> (encodedSession:string):T {
+    const data:string = encodedSession.substring(SIGNATURE_DIGEST_LENGTH)
+    const buf = Buffer.from(data, 'base64')
+    const str = buf.toString('utf-8')
+    return JSON.parse(str)
+}
+
+/**
  * Parse a cookie header.
  *
  * Parse the given cookie header string into an object.
- * The object has the various cookies as keys(names) => values
+ * The object has the various cookies as names => values
  */
-function parseCookie (incomingCookies:string[], options?:Partial<{
+export function parseCookie (incomingCookies:string[], options?:Partial<{
     decode:(s:string)=>string
 }>):Record<string, string> {
-    const str = incomingCookies[0]
+    // const str = incomingCookies[0]
     const obj = {}
     const dec = options?.decode || decode
 
-    let index = 0
-    while (index < str.length) {
-        const eqIdx = str.indexOf('=', index)
+    incomingCookies.forEach(cookie => {
+        let index = 0
+        while (index < cookie.length) {
+            const eqIdx = cookie.indexOf('=', index)
 
-        // no more cookie pairs
-        if (eqIdx === -1) {
-            break
-        }
-
-        let endIdx = str.indexOf(';', index)
-
-        if (endIdx === -1) {
-            endIdx = str.length
-        } else if (endIdx < eqIdx) {
-            // backtrack on prior semicolon
-            index = str.lastIndexOf(';', eqIdx - 1) + 1
-            continue
-        }
-
-        const key = str.slice(index, eqIdx).trim()
-
-        // only assign once
-        if (obj[key] === undefined) {
-            let val = str.slice(eqIdx + 1, endIdx).trim()
-
-            // quoted values
-            if (val.charCodeAt(0) === 0x22) {
-                val = val.slice(1, -1)
+            // no more cookie pairs
+            if (eqIdx === -1) {
+                break
             }
 
-            obj[key] = tryDecode(val, dec)
-        }
+            let endIdx = cookie.indexOf(';', index)
 
-        index = endIdx + 1
-    }
+            if (endIdx === -1) {
+                endIdx = cookie.length
+            } else if (endIdx < eqIdx) {
+                // backtrack on prior semicolon
+                index = cookie.lastIndexOf(';', eqIdx - 1) + 1
+                continue
+            }
+
+            const key = cookie.slice(index, eqIdx).trim()
+
+            // only assign once
+            if (obj[key] === undefined) {
+                let val = cookie.slice(eqIdx + 1, endIdx).trim()
+
+                // quoted values
+                if (val.charCodeAt(0) === 0x22) {
+                    val = val.slice(1, -1)
+                }
+
+                obj[key] = tryDecode(val, dec)
+            }
+
+            index = endIdx + 1
+        }
+    })
 
     return obj
 }
-
-// /**
-//  * Parse a cookie header.
-//  *
-//  * Parse the given cookie header string into an object.
-//  * The object has the various cookies as keys(names) => values
-//  */
-// function parseCookie (str:string, options?:Partial<{
-//     decode:(s:string)=>string
-// }>):Record<string, string> {
-//     const obj = {}
-//     const dec = options?.decode || decode
-
-//     let index = 0
-//     while (index < str.length) {
-//         const eqIdx = str.indexOf('=', index)
-
-//         // no more cookie pairs
-//         if (eqIdx === -1) {
-//             break
-//         }
-
-//         let endIdx = str.indexOf(';', index)
-
-//         if (endIdx === -1) {
-//             endIdx = str.length
-//         } else if (endIdx < eqIdx) {
-//             // backtrack on prior semicolon
-//             index = str.lastIndexOf(';', eqIdx - 1) + 1
-//             continue
-//         }
-
-//         const key = str.slice(index, eqIdx).trim()
-
-//         // only assign once
-//         if (obj[key] === undefined) {
-//             let val = str.slice(eqIdx + 1, endIdx).trim()
-
-//             // quoted values
-//             if (val.charCodeAt(0) === 0x22) {
-//                 val = val.slice(1, -1)
-//             }
-
-//             obj[key] = tryDecode(val, dec)
-//         }
-
-//         index = endIdx + 1
-//     }
-
-//     return obj
-// }
 
 /**
  * Returns the name to be used for the session cookie.
@@ -195,7 +172,8 @@ function getCookieName ():string {
         }
 
         if (check instanceof Array !== true || check[0] !== nameFromEnv) {
-            throw new Error('"SESSION_COOKIE_NAME" must only contain ASCII characters and no whitespace.')
+            throw new Error('"SESSION_COOKIE_NAME" must only contain ASCII ' +
+                'characters and no whitespace.')
         }
 
         name = nameFromEnv
@@ -214,6 +192,27 @@ function decode (str:string):string {
     return str.indexOf('%') !== -1 ?
         decodeURIComponent(str) :
         str
+}
+
+export function createCookie (newSessionData:object, secretKey?:string) {
+    const key = secretKey || getSecretKey()
+    // Sign session data and add it to `Set-Cookie`.
+    const sessionAsJSON = stringify(newSessionData)
+    console.log('session as json', sessionAsJSON)
+
+    // session=[signature][data];
+
+    // sig + base64SessionValue
+    const cookieValue = sign(sessionAsJSON, key) +
+        Buffer.from(sessionAsJSON, 'utf-8').toString('base64')
+
+    const sesStr = Buffer.from(sessionAsJSON).toString('base64')
+    console.log('**sesStr**', sesStr)
+    const decoded = Buffer.from(sesStr, 'base64').toString('utf-8')
+    console.log('**decoded**', decoded)
+    console.log('**cookievalue**', cookieValue)
+
+    return cookieValue
 }
 
 /**
@@ -238,6 +237,14 @@ function getSecretKey ():string {
     return secret
 }
 
+/**
+ * Compare a given signature to a new signature created with the same data.
+ *
+ * @param {string} key The key
+ * @param {Buffer|string} data The data to sign
+ * @param {string} signature The signature to check
+ * @returns {boolean} True or false, if the signature is valid or not
+ */
 export function verify (
     key:string,
     data:Buffer|string,
@@ -271,14 +278,13 @@ function tryDecode (str:string, decode:(s:string)=>string):string {
 export function setCookie (
     response:HandlerResponse,
     ctx:HandlerContext,
-    newData:Record<string, string>
+    newData?:Record<string, string>
 ):HandlerResponse {
     if (!response.multiValueHeaders) response.multiValueHeaders = {}
     if (!response.multiValueHeaders['Set-Cookie']) {
         response.multiValueHeaders['Set-Cookie'] = []
     }
 
-    const cookieName = getCookieName()
     const session = getSession(ctx)
     const newSession = { ...session, ...newData }
 
@@ -292,23 +298,26 @@ export function setCookie (
     }
 
     // Sign session data and add it to `Set-Cookie`.
-    const sessionAsJSON = stringify(newSession)
-    // session=[signature][data];
+    // this is the signature and data, concated and encoded as base64
+    const cookieValue = createCookie(newSession, getSecretKey())
 
-    const cookieValue = sign(sessionAsJSON, getSecretKey()) +
-        Buffer.from(sessionAsJSON).toString('base64');
+    const cookieName = getCookieName();
 
-    (response.multiValueHeaders['Set-Cookie'] as (string|boolean|void)[]).push(
-        serializeCookie(cookieName, cookieValue, getCookieOptions())
-    )
+    (response.multiValueHeaders['Set-Cookie'] as (string|boolean|void)[])
+        .push(serializeCookie(cookieName, cookieValue, getCookieOptions()))
 
     return response
 }
 
+/**
+ * Sign the given data and return the signature as a string.
+ *
+ * @returns {string}
+ */
 export function sign (data:Buffer|string, key:string, opts?:Partial<{
     algorithm:'sha1'|'sha256'|'sha512';
     encoding:crypto.BinaryToTextEncoding;
-}>) {
+}>):string {
     const algorithm = opts?.algorithm || 'sha1'
     const encoding = opts?.encoding || 'base64'
 

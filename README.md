@@ -18,8 +18,18 @@ The session cookie can be configured through environment variables.
 Session cookies are signed using [HMAC SHA256](https://en.wikipedia.org/wiki/HMAC), which requires using a secret key of at least 32 bytes of length.
 This one-liner can be used to generate a random key, once the library is installed:
 
-```bash
-node -e "console.log(require('netlify-functions-session-cookie').generateSecretKey())"
+### in this repo
+
+```sh
+node -e "console.log(require(./dist/create.cjs).generateKey())"
 ```
+
+### if installted as a dependency
+
+```sh
+node -e "console.log(require('@bicycle-codes/session-cookie').generateKey())"
+```
+
+### env variables
 
 Use the [`SESSION_COOKIE_SECRET` environment variable](#environment-variables-and-options) to give the library access to the secret key.
