@@ -1,44 +1,11 @@
 import crypto from 'crypto'
 import {
-    Handler,
-    HandlerContext,
     HandlerEvent,
+    HandlerContext,
     HandlerResponse
 } from '@netlify/functions'
-// import cookie from 'cookie'
+import stringify from 'json-canon'
 import { timeSafeCompare as compare, serializeCookie } from './util.js'
-
-export function verify (keys:string[], data:Buffer|string, signature:string) {
-    for (let i = 0, l = keys.length; i < l; i++) {
-        if (compare(signature, sign(data, keys[i]))) {
-            return i
-        }
-    }
-
-    return -1
-}
-
-function sign (data:Buffer|string, key:string, opts?:Partial<{
-    algorithm:'sha1'|'sha256'|'sha512';
-    encoding:crypto.BinaryToTextEncoding;
-}>) {
-    const algorithm = opts?.algorithm || 'sha1'
-    const encoding = opts?.encoding || 'base64'
-
-    return crypto
-        .createHmac(algorithm, key)
-        .update(data).digest(encoding)
-        .replace(/\/|\+|=/g, (x) => {
-            return ({ '/': '_', '+': '-', '=': '' })[x] as string
-        })
-}
-
-/**
- * Name to be used for the session cookie if none provided.
- * @constant
- * @private
- */
-const SESSION_COOKIE_NAME_DEFAULT = 'session'
 
 /**
  * Value to be used as a default for the "Max-Age" attribute of the session cookie.
@@ -48,203 +15,170 @@ const SESSION_COOKIE_NAME_DEFAULT = 'session'
 const SESSION_COOKIE_MAX_AGE_SPAN_DEFAULT = (60 * 60 * 24 * 7)
 
 /**
+ * Name to be used for the session cookie if none provided.
+ */
+const SESSION_COOKIE_NAME_DEFAULT = 'session'
+
+/**
  * Length of the signature digest, in characters.
  * Used to separate signature from data in the raw session cookie.
- *
- * @constant
- * @private
  */
 const SIGNATURE_DIGEST_LENGTH = 43
 
-//
-// Public functions
-//
-/**
- * Binds a given lambda function handler to the `sessionWrapper()` function.
- *
- * Usage:
- * `exports.handler = withSession(async function(event, context, session) { ... }`
- *
- * @param {function} handler - Lambda function handler. Must be async.
- * @returns {function} - Copy of the `sessionWrapper` function bound to the `handler` function.
- */
-export function withSession (handler) {
-    if (handler.constructor.name !== 'AsyncFunction') {
-        throw new Error(`"handler" must be an async function. ${handler.constructor.name} given.`)
-    }
-
-    return sessionWrapper.bind(handler)
-}
-
-/**
- * Returns a reference to the `context.clientContext.sessionCookieData` object.
- * This object contains data for the current session, which can be read and edited.
- *
- * @param {Object} context - From the Lambda handler function.
- * @returns {Object} - Reference to the session data object.
- */
-export function getSession (context) {
-    if (!context || !('clientContext' in context)) {
-        throw new Error('`getSession()` requires a valid Lambda `context` object as an argument.')
-    }
-
-    let session = context.clientContext.sessionCookieData
-
-    // Initialize `sessionCookieData` if it doesn't exist.
-    if (session === undefined || session === null) {
-        context.clientContext.sessionCookieData = {}
-        session = context.clientContext.sessionCookieData
-    }
-
-    return session
-}
-
-/**
- * Utility to help clear out a session object in place.
- *
- * @param {Object} context - From the Lambda handler function.
- * @public
- */
-export function clearSession (context) {
-    const session = getSession(context)
-
-    for (const key in session) {
-        delete session[key]
-    }
-}
-
-/**
- * Generates a 32-byte-long random key that can be used for signing cookies using SHA-256 HMAC.
- *
- * Thanks to: https://github.com/crypto-utils/keygrip/issues/26
- *
- * @returns {string} - Random series of 32 bytes encoded in base64.
- * @public
- */
-export function generateSecretKey () {
-    return crypto.randomBytes(32).toString('base64')
-}
-
-//
-// Local functions
-//
-/**
- * Main wrapper around the lambda handler function.
- * Automatically manages a cryptographically-signed session cookie, in an out.
- * Gives access to a `session` object, which can be used to access and edit session data.
- *
- * Cookie data format:
- * - Part 1: HMAC SHA256 digest of JSON string, base64.
- * - Part 2: JSON string that was signed, base64.
- * - See `SIGNATURE_DIGEST_LENGTH` to determine split between the two parts.
- *
- * @param {Object} event - From the Lambda handler function.
- * @param {Object} context - From the Lambda handler function.
- * @this {function} - Lambda function handler. Bound via `withSession`.
- * @returns {Object} - Altered `response` received from `handler`.
- * @private
- */
-async function sessionWrapper (
-    this:Handler,
-    event:HandlerEvent,
-    context:HandlerContext
-) {
-    const cookieName = getCookieName()
-    // const secretKey = new Keygrip([getSecretKey()], 'sha256', 'base64')
-
-    let incomingCookies:string[]|Record<string, string>|null = null
-    let response:null|HandlerResponse = null
-
-    const session = getSession(context) // Holds the current state of session data.
-
-    //
-    // [1] Try to validate and parse current session data from the `Cookie` header.
-    //
-
+export function getCookiesFromEvent (ev:HandlerEvent):string[]|undefined {
     // Grab cookies from header
-    if (event.multiValueHeaders && event.multiValueHeaders.Cookie) {
-        incomingCookies = event.multiValueHeaders.Cookie
-    }
-    if (event.multiValueHeaders && event.multiValueHeaders.cookie) {
-        incomingCookies = event.multiValueHeaders.cookie
-    }
-
-    // Parse cookies, if any
-    if (incomingCookies) {
-        incomingCookies = parseCookie(incomingCookies[0])
-    }
-
-    // Grab, validate and parse session data from cookie
-    if (incomingCookies && incomingCookies[cookieName]) {
-    // Signature: first X characters (`SIGNATURE_DIGEST_LENGTH`), stays in base64.
-    // Note: Only works because we know that all characters used for signatures are 1 byte long.
-        const signature = incomingCookies[cookieName].substring(0, SIGNATURE_DIGEST_LENGTH)
-
-        // Data: everything after the signature. Needs to be decoded from base64, parsed from JSON.
-        let data = incomingCookies[cookieName].substring(SIGNATURE_DIGEST_LENGTH)
-        data = Buffer.from(data, 'base64').toString('utf-8')
-
-        // If signature matches, parse data from JSON and put into the `clientContext.session` object.
-        if (verify([getSecretKey()], data, signature)) {
-            data = JSON.parse(data)
-            for (const [key, value] of Object.entries(data)) { // Update in place to preserve `session` ref.
-                session[key] = value
-            }
-        }
-    }
-
-    //
-    // [2] Execute the function handler.
-    //
-    response = await this(event, context)!
-    // `context` contains parsed session data that can be read and edited directly from the handler.
-
-    //
-    // [3] Process response out of the handler to automatically append session data as a signed cookie.
-    //
-
-    // Create `Set-Cookie` entry in `response.multiValueHeaders` if not set.
-    if (!response.multiValueHeaders) {
-        response.multiValueHeaders = {}
-    }
-
-    if (!response.multiValueHeaders['Set-Cookie']) {
-        response.multiValueHeaders['Set-Cookie'] = []
-    }
-
-    // Merge any value that may be in `headers['Set-Cookie']` to
-    // `response.multiValueHeaders['Set-Cookie']`.
-    if (response.headers && response.headers['Set-Cookie']) {
-        (response.multiValueHeaders['Set-Cookie'] as (string|number|boolean)[])
-            .push(response.headers['Set-Cookie'])
-
-        delete response.headers['Set-Cookie']
-    }
-
-    // Sign session data and add it to `Set-Cookie`.
-    const sessionAsJSON = JSON.stringify(session)
-    // session=[signature][data];
-    const cookieValue = sign(sessionAsJSON, getSecretKey()) +
-        Buffer.from(sessionAsJSON).toString('base64');
-
-    (response.multiValueHeaders['Set-Cookie'] as (string|boolean|void)[]).push(
-        serializeCookie(cookieName, cookieValue, getCookieOptions())
+    const incomingCookies:string[]|undefined = (
+        ev.multiValueHeaders.Cookie ||
+        ev.multiValueHeaders.cookie
     )
 
-    return response
+    return incomingCookies
 }
+
+export function verifyCookieFromEvent (ev:HandlerEvent):boolean {
+    const cookies = getCookiesFromEvent(ev)
+    if (!cookies) return false
+
+    const cookieMap:Record<string, string> = parseCookie(cookies)
+    const cookieName = getCookieName()
+
+    // Grab, validate, and parse session data from cookie
+    if (cookieMap && cookieMap[cookieName]) {
+        // Signature: first X characters (`SIGNATURE_DIGEST_LENGTH`), stays
+        //   in base64.
+        // Note: Only works because we know that all characters used for
+        //   signatures are 1 byte long.
+        const signature = cookieMap[cookieName].substring(
+            0,
+            SIGNATURE_DIGEST_LENGTH
+        )
+
+        // Data: everything after the signature. Needs to be decoded from base64,
+        // parsed from JSON.
+        let data:string = cookieMap[cookieName].substring(SIGNATURE_DIGEST_LENGTH)
+        data = Buffer.from(data, 'base64').toString('utf-8')
+
+        // if signature matches, return true, because it is valid
+        return verify(getSecretKey(), data, signature)
+    }
+
+    return false
+}
+
+/**
+ * Parse a cookie header.
+ *
+ * Parse the given cookie header string into an object.
+ * The object has the various cookies as keys(names) => values
+ */
+function parseCookie (incomingCookies:string[], options?:Partial<{
+    decode:(s:string)=>string
+}>):Record<string, string> {
+    const str = incomingCookies[0]
+    const obj = {}
+    const dec = options?.decode || decode
+
+    let index = 0
+    while (index < str.length) {
+        const eqIdx = str.indexOf('=', index)
+
+        // no more cookie pairs
+        if (eqIdx === -1) {
+            break
+        }
+
+        let endIdx = str.indexOf(';', index)
+
+        if (endIdx === -1) {
+            endIdx = str.length
+        } else if (endIdx < eqIdx) {
+            // backtrack on prior semicolon
+            index = str.lastIndexOf(';', eqIdx - 1) + 1
+            continue
+        }
+
+        const key = str.slice(index, eqIdx).trim()
+
+        // only assign once
+        if (obj[key] === undefined) {
+            let val = str.slice(eqIdx + 1, endIdx).trim()
+
+            // quoted values
+            if (val.charCodeAt(0) === 0x22) {
+                val = val.slice(1, -1)
+            }
+
+            obj[key] = tryDecode(val, dec)
+        }
+
+        index = endIdx + 1
+    }
+
+    return obj
+}
+
+// /**
+//  * Parse a cookie header.
+//  *
+//  * Parse the given cookie header string into an object.
+//  * The object has the various cookies as keys(names) => values
+//  */
+// function parseCookie (str:string, options?:Partial<{
+//     decode:(s:string)=>string
+// }>):Record<string, string> {
+//     const obj = {}
+//     const dec = options?.decode || decode
+
+//     let index = 0
+//     while (index < str.length) {
+//         const eqIdx = str.indexOf('=', index)
+
+//         // no more cookie pairs
+//         if (eqIdx === -1) {
+//             break
+//         }
+
+//         let endIdx = str.indexOf(';', index)
+
+//         if (endIdx === -1) {
+//             endIdx = str.length
+//         } else if (endIdx < eqIdx) {
+//             // backtrack on prior semicolon
+//             index = str.lastIndexOf(';', eqIdx - 1) + 1
+//             continue
+//         }
+
+//         const key = str.slice(index, eqIdx).trim()
+
+//         // only assign once
+//         if (obj[key] === undefined) {
+//             let val = str.slice(eqIdx + 1, endIdx).trim()
+
+//             // quoted values
+//             if (val.charCodeAt(0) === 0x22) {
+//                 val = val.slice(1, -1)
+//             }
+
+//             obj[key] = tryDecode(val, dec)
+//         }
+
+//         index = endIdx + 1
+//     }
+
+//     return obj
+// }
 
 /**
  * Returns the name to be used for the session cookie.
  *
  * Defaults to the value of `SESSION_COOKIE_NAME_DEFAULT`.
  * Can be overridden via `env.SESSION_COOKIE_NAME`.
- * Will throw if `SESSION_COOKIE_NAME` is set but contains anything else than ASCII characters (excluding whitespace).
+ * Will throw if `SESSION_COOKIE_NAME` is set but contains anything else
+ * than ASCII characters (excluding whitespace).
  *
  * @returns {string} - Name used for the session cookie
- * @private
  */
-function getCookieName () {
+function getCookieName ():string {
     let name = SESSION_COOKIE_NAME_DEFAULT
     const nameFromEnv = process.env.SESSION_COOKIE_NAME
 
@@ -265,6 +199,142 @@ function getCookieName () {
     }
 
     return name
+}
+
+/**
+ * URL-decode string value. Optimized to skip native call when no %.
+ *
+ * @param {string} str
+ * @returns {string}
+ */
+function decode (str:string):string {
+    return str.indexOf('%') !== -1 ?
+        decodeURIComponent(str) :
+        str
+}
+
+/**
+ * Checks and returns the secret key to be used to sign the session cookie.
+ * Reads from `env.SESSION_COOKIE_SECRET`.
+ * The key must be at least 32 bytes long.
+ */
+function getSecretKey ():string {
+    const secret = process.env.SESSION_COOKIE_SECRET
+    let secretLength = 0
+
+    if (!secret || typeof secret !== 'string') {
+        throw new Error('"SESSION_COOKIE_SECRET": No secret key provided.')
+    }
+
+    secretLength = Buffer.byteLength(secret, 'utf-8')
+    if (secretLength < 32) {
+        throw new Error('"SESSION_COOKIE_SECRET": The secret key must be at ' +
+            'least 32 bytes long; (' + secretLength + ' given).')
+    }
+
+    return secret
+}
+
+function verify (key:string, data:Buffer|string, signature:string):boolean {
+    return compare(signature, sign(data, key))
+}
+
+/**
+ * Try decoding a string using a decoding function.
+ *
+ * @param {string} str
+ * @param {function} decode
+ * @private
+ */
+function tryDecode (str:string, decode:(s:string)=>string):string {
+    try {
+        return decode(str)
+    } catch (err) {
+        return str
+    }
+}
+
+/**
+ * Patch the response object with signed cookie data.
+ *
+ * @param {HandlerResponse} response The response to merge the headers with
+ * @param {HandlerContext} ctx The context for the lambda function
+ * @returns {Record<string, string>}
+ */
+export function setCookie (
+    response:HandlerResponse,
+    ctx:HandlerContext,
+    newData:Record<string, string>
+):HandlerResponse {
+    if (!response.multiValueHeaders) response.multiValueHeaders = {}
+    if (!response.multiValueHeaders['Set-Cookie']) {
+        response.multiValueHeaders['Set-Cookie'] = []
+    }
+
+    const cookieName = getCookieName()
+    const session = getSession(ctx)
+    const newSession = { ...session, ...newData }
+
+    // Merge any value that may be in `headers['Set-Cookie']` to
+    // `response.multiValueHeaders['Set-Cookie']`.
+    if (response.headers && response.headers['Set-Cookie']) {
+        (response.multiValueHeaders['Set-Cookie'] as (string|number|true)[])
+            .push(response.headers['Set-Cookie'])
+
+        delete response.headers['Set-Cookie']
+    }
+
+    // Sign session data and add it to `Set-Cookie`.
+    const sessionAsJSON = stringify(newSession)
+    // session=[signature][data];
+
+    const cookieValue = sign(sessionAsJSON, getSecretKey()) +
+        Buffer.from(sessionAsJSON).toString('base64');
+
+    (response.multiValueHeaders['Set-Cookie'] as (string|boolean|void)[]).push(
+        serializeCookie(cookieName, cookieValue, getCookieOptions())
+    )
+
+    return response
+}
+
+function sign (data:Buffer|string, key:string, opts?:Partial<{
+    algorithm:'sha1'|'sha256'|'sha512';
+    encoding:crypto.BinaryToTextEncoding;
+}>) {
+    const algorithm = opts?.algorithm || 'sha1'
+    const encoding = opts?.encoding || 'base64'
+
+    return crypto
+        .createHmac(algorithm, key)
+        .update(data).digest(encoding)
+        .replace(/\/|\+|=/g, (x) => {
+            return ({ '/': '_', '+': '-', '=': '' })[x] as string
+        })
+}
+
+/**
+ * Returns a reference to the `context.clientContext.sessionCookieData` object.
+ * This object contains data for the current session, which can be read and edited.
+ *
+ * @param {Object} context - From the Lambda handler function.
+ * @returns {Object} - Reference to the session data object.
+ */
+export function getSession (context:HandlerContext):Record<string, string> {
+    if (!context || !context.clientContext) {
+        throw new Error('`getSession()` requires a valid Lambda `context` ' +
+            'object as an argument.')
+    }
+
+    let session = context.clientContext?.sessionCookieData
+
+    // Initialize `sessionCookieData` if it doesn't exist.
+    if (session === undefined || session === null) {
+        context.clientContext.sessionCookieData = {}
+        session = context.clientContext.sessionCookieData
+    }
+
+    return session
 }
 
 /**
@@ -353,105 +423,4 @@ function getCookieOptions () {
     }
 
     return options
-}
-
-/**
- * Checks and returns the secret key to be used to sign the session cookie.
- * Reads from `env.SESSION_COOKIE_SECRET`.
- * The key must be at least 32 bytes long.
- *
- * @returns {string} - Key to be used to sign cookies
- */
-function getSecretKey ():string {
-    const secret = process.env.SESSION_COOKIE_SECRET
-    let secretLength = 0
-
-    if (!secret || typeof secret !== 'string') {
-        throw new Error('"SESSION_COOKIE_SECRET": No secret key provided.')
-    }
-
-    secretLength = Buffer.byteLength(secret, 'utf-8')
-    if (secretLength < 32) {
-        throw new Error(`"SESSION_COOKIE_SECRET": The secret key must be at least 32 bytes long (${secretLength} given).`)
-    }
-
-    return secret
-}
-
-/**
- * Parse a cookie header.
- *
- * Parse the given cookie header string into an object.
- * The object has the various cookies as keys(names) => values
- */
-function parseCookie (str:string, options?:Partial<{
-    decode
-}>):Record<string, string> {
-    const obj = {}
-    const dec = options?.decode || decode
-
-    let index = 0
-    while (index < str.length) {
-        const eqIdx = str.indexOf('=', index)
-
-        // no more cookie pairs
-        if (eqIdx === -1) {
-            break
-        }
-
-        let endIdx = str.indexOf(';', index)
-
-        if (endIdx === -1) {
-            endIdx = str.length
-        } else if (endIdx < eqIdx) {
-            // backtrack on prior semicolon
-            index = str.lastIndexOf(';', eqIdx - 1) + 1
-            continue
-        }
-
-        const key = str.slice(index, eqIdx).trim()
-
-        // only assign once
-        if (obj[key] === undefined) {
-            let val = str.slice(eqIdx + 1, endIdx).trim()
-
-            // quoted values
-            if (val.charCodeAt(0) === 0x22) {
-                val = val.slice(1, -1)
-            }
-
-            obj[key] = tryDecode(val, dec)
-        }
-
-        index = endIdx + 1
-    }
-
-    return obj
-}
-
-/**
- * URL-decode string value. Optimized to skip native call when no %.
- *
- * @param {string} str
- * @returns {string}
- */
-function decode (str:string):string {
-    return str.indexOf('%') !== -1 ?
-        decodeURIComponent(str) :
-        str
-}
-
-/**
- * Try decoding a string using a decoding function.
- *
- * @param {string} str
- * @param {function} decode
- * @private
- */
-function tryDecode (str:string, decode:(string)=>string):string {
-    try {
-        return decode(str)
-    } catch (e) {
-        return str
-    }
 }
