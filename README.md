@@ -1,33 +1,25 @@
-# template ts browser
-![tests](https://github.com/nichoth/template-ts-browser/actions/workflows/nodejs.yml/badge.svg)
-[![types](https://img.shields.io/npm/types/@nichoth/catch-links?style=flat-square)](README.md)
-[![module](https://img.shields.io/badge/module-ESM%2FCJS-blue?style=flat-square)](README.md)
-[![semantic versioning](https://img.shields.io/badge/semver-2.0.0-blue?logo=semver&style=flat-square)](https://semver.org/)
-[![license](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
+# session cookies
 
-A template for typescript *dependency* modules that run in a browser environment.
-Uses `tape-run` for tests in a browser. See [template-ts](https://github.com/nichoth/template-ts) for the same thing but targeting Node.
+Cookies
 
-## use
-1. Use the template button in github. Or clone this then
-`rm -rf .git && git init`. Then `npm i && npm init`.
+## Environment variables and options
 
-2. Edit the source code in `src/index.ts`.
+The session cookie can be configured through environment variables.
 
-3. Delete either `.github/workflows/gh-pages-docs.yml` or `.github/workflows/gh-pages.yml`, depending on whether you want to deploy an example or docs to github pages.
+### Required
+| Name | Description |
+| --- | --- |
+| `SESSION_COOKIE_SECRET` | Used to sign and validate the session cookie. Must be at least 32 bytes long. See [_"Generating a secret key"_](#generating-a-secret-key) for more information. |
 
-## featuring
+---
 
-* compile the source to both ESM and CJS format, and put compiled files in `dist`.
-* ignore `dist` and `*.js` in git, but don't ignore them in npm. That way we
-  don't commit any compiled code to git, but it is available to consumers.
-* use npm's `prepublishOnly` hook to compile the code before publishing to npm.
-* use [exports](./package.json#L41) field in `package.json` to make sure the right format is used
-  by consumers.
-* `preversion` npm hook -- lint
-* `postversion` npm hook -- `git push --follow-tags && npm publish`
-* eslint -- `npm run lint`
-* tests run in a browser environment via `tape-run` -- see [`npm test`](./package.json#L12).
-  Includes `tap` testing tools -- [tapzero](https://github.com/bicycle-codes/tapzero)
-  and [tap-arc](https://www.npmjs.com/package/tap-arc)
-* CI via github actions
+## Generating a secret key
+
+Session cookies are signed using [HMAC SHA256](https://en.wikipedia.org/wiki/HMAC), which requires using a secret key of at least 32 bytes of length.
+This one-liner can be used to generate a random key, once the library is installed:
+
+```bash
+node -e "console.log(require('netlify-functions-session-cookie').generateSecretKey())"
+```
+
+Use the [`SESSION_COOKIE_SECRET` environment variable](#environment-variables-and-options) to give the library access to the secret key.

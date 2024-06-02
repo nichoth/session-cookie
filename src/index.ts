@@ -9,8 +9,6 @@ import { timeSafeCompare as compare, serializeCookie } from './util.js'
 
 /**
  * Value to be used as a default for the "Max-Age" attribute of the session cookie.
- * @constant
- * @private
  */
 const SESSION_COOKIE_MAX_AGE_SPAN_DEFAULT = (60 * 60 * 24 * 7)
 
@@ -35,6 +33,11 @@ export function getCookiesFromEvent (ev:HandlerEvent):string[]|undefined {
     return incomingCookies
 }
 
+/**
+ * This verifies that the signature in the cookie is valid.
+ * Does not check expiration.
+ * @returns {boolean}
+ */
 export function verifyCookieFromEvent (ev:HandlerEvent):boolean {
     const cookies = getCookiesFromEvent(ev)
     if (!cookies) return false
@@ -235,7 +238,11 @@ function getSecretKey ():string {
     return secret
 }
 
-function verify (key:string, data:Buffer|string, signature:string):boolean {
+export function verify (
+    key:string,
+    data:Buffer|string,
+    signature:string
+):boolean {
     return compare(signature, sign(data, key))
 }
 
@@ -298,7 +305,7 @@ export function setCookie (
     return response
 }
 
-function sign (data:Buffer|string, key:string, opts?:Partial<{
+export function sign (data:Buffer|string, key:string, opts?:Partial<{
     algorithm:'sha1'|'sha256'|'sha512';
     encoding:crypto.BinaryToTextEncoding;
 }>) {
@@ -423,4 +430,16 @@ function getCookieOptions () {
     }
 
     return options
+}
+
+/**
+ * Generates a 32-byte-long random key that can be used for signing cookies
+ * using SHA-256 HMAC.
+ *
+ * Thanks to: https://github.com/crypto-utils/keygrip/issues/26
+ *
+ * @returns {string} - Random series of 32 bytes encoded in base64.
+ */
+export function generateSecretKey ():string {
+    return crypto.randomBytes(32).toString('base64')
 }
