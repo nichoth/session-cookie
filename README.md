@@ -1,7 +1,7 @@
 # session cookie
 
 [![types](https://img.shields.io/npm/types/@nichoth/session-cookie?style=flat-square)](./src/index.ts)
-[![module](https://img.shields.io/badge/module-ESM%2FCJS-blue?style=flat-square)](README.md)
+[![module](https://img.shields.io/badge/module-ESM%2FCJS-blue?style=flat-square)](https://github.com/nichoth/session-cookie/blob/0d91336aa9c73f28556d620a75e2564765073457/package.json#L57)
 [![semantic versioning](https://img.shields.io/badge/semver-2.0.0-blue?logo=semver&style=flat-square)](https://semver.org/)
 [![license](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
 
