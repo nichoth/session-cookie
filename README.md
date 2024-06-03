@@ -278,3 +278,7 @@ npm test
 ```
 
 Also, open the page [http://localhost:9999/.netlify/functions/test](http://localhost:9999/.netlify/functions/test) to test in a real browser. This is more realistic because cookies will be preserved across page refreshes.
+
+## credits
+
+Thanks [@matteocargnelutti](https://github.com/matteocargnelutti) for publishing [netlify-functions-session-cookie](https://github.com/matteocargnelutti/netlify-functions-session-cookie), which informed this module.
