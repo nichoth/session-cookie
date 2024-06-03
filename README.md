@@ -16,7 +16,7 @@ This is designed to work with lamdba functions, eg [via netlify](https://docs.ne
 
 ## install
 
-```sh
+```bash
 npm i -S @nichoth/session-cookie
 ```
 
@@ -36,7 +36,7 @@ This one-liner can be used to generate a random key, once this library is instal
 
 ### after installing as a dependency
 
-```sh
+```bash
 node -e "console.log(require('@nichoth/session-cookie').generateKey())"
 ```
 
@@ -268,13 +268,13 @@ export const handler:Handler = async function handler (
 
 I haven't made fully automated tests. To test this, start the local lambda server in one terminal:
 
-```sh
+```bash
 npm run fns
 ```
 
 Then run the tests in a second terminal:
 
-```sh
+```bash
 npm test
 ```
 
