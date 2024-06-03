@@ -179,7 +179,7 @@ export const handler:Handler = async function handler (
 
     // this depends on the signature being a specific length,
     // because of the way that the cookie is serialized
-    const parsedSession = parseSession<{ identifier }>(session)
+    const parsedSession = parseSession<{ identifier, ts }>(session)
 
     // here the session data includes an identifier
     if (parsedSession && parsedSession.identifier) {
