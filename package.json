@@ -1,5 +1,5 @@
 {
-  "name": "@bicycle-codes/session-cookie",
+  "name": "@nichoth/session-cookie",
   "description": "Create secure cookies",
   "directories": {
     "example": "example",
@@ -75,13 +75,13 @@
   "types": "./dist/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bicycle-codes/session-cookie.git"
+    "url": "git+https://github.com/nichoth/session-cookie.git"
   },
   "keywords": [
     "cookie"
   ],
   "bugs": {
-    "url": "https://github.com/bicycle-codes/session-cookie/issues"
+    "url": "https://github.com/nichoth/session-cookie/issues"
   },
-  "homepage": "https://github.com/bicycle-codes/session-cookie#readme"
+  "homepage": "https://github.com/nichoth/session-cookie"
 }

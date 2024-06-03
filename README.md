@@ -25,7 +25,7 @@ This one-liner can be used to generate a random key, once this library is instal
 ### after installing as a dependency
 
 ```sh
-node -e "console.log(require('@bicycle-codes/session-cookie').generateKey())"
+node -e "console.log(require('@nichoth/session-cookie').generateKey())"
 ```
 
 ## API
@@ -40,7 +40,7 @@ import {
     setCookie,
     getCookiesFromEvent,
     verifyCookieFromEvent,
-} from '@bicycle-codes/session-cookie'
+} from '@nichoth/session-cookie'
 ```
 
 ### `getCookiesFromEvent(event)`
@@ -149,7 +149,7 @@ import {
     getCookiesFromEvent,
     verifySessionString,
     SESSION_COOKIE_NAME_DEFAULT
-} from '@bicycle-codes/session-cookie'
+} from '@nichoth/session-cookie'
 
 export const handler:Handler = async function handler (
     ev:HandlerEvent,
@@ -193,7 +193,7 @@ export const handler:Handler = async function handler (
 ```js
 import crypto from 'crypto'
 import { Handler, HandlerContext, HandlerEvent } from '@netlify/functions'
-import { setCookie } from '@bicycle-codes/session-cookie'
+import { setCookie } from '@nichoth/session-cookie'
 
 export const handler:Handler = async function handler (
     ev:HandlerEvent,
@@ -230,7 +230,7 @@ This happens in a lambda function.
 
 ```js
 import { Handler, HandlerContext, HandlerEvent } from '@netlify/functions'
-import { getCookiesFromEvent } from '@bicycle-codes/session-cookie'
+import { getCookiesFromEvent } from '@nichoth/session-cookie'
 
 export const handler:Handler = async function handler (
     ev:HandlerEvent,
