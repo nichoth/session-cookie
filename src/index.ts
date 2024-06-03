@@ -106,52 +106,29 @@ export function parseSession<T=object> (encodedSession:string):T {
  * Parse the given cookie header string into an object.
  * The object has the various cookies as names => values
  */
-export function parseCookie (incomingCookies:string[], options?:Partial<{
-    decode:(s:string)=>string
-}>):Record<string, string> {
-    // const str = incomingCookies[0]
-    const obj = {}
-    const dec = options?.decode || decode
+export function parseCookie (
+    incomingCookies:string[],
+    _decode?:(s:string)=>string
+):Record<string, string> {
+    const dec = _decode || decode
 
-    incomingCookies.forEach(cookie => {
-        let index = 0
-        while (index < cookie.length) {
-            const eqIdx = cookie.indexOf('=', index)
+    const parsedCookies = incomingCookies.map(cookie => {
+        const parsed = cookie.split(';').map(str => {
+            const split = str.trim().split('=')
+            return split
+        }).reduce((acc, val) => {
+            acc[val[0]] = tryDecode(val[1], dec) ?? true
+            return acc
+        }, {})
 
-            // no more cookie pairs
-            if (eqIdx === -1) {
-                break
-            }
-
-            let endIdx = cookie.indexOf(';', index)
-
-            if (endIdx === -1) {
-                endIdx = cookie.length
-            } else if (endIdx < eqIdx) {
-                // backtrack on prior semicolon
-                index = cookie.lastIndexOf(';', eqIdx - 1) + 1
-                continue
-            }
-
-            const key = cookie.slice(index, eqIdx).trim()
-
-            // only assign once
-            if (obj[key] === undefined) {
-                let val = cookie.slice(eqIdx + 1, endIdx).trim()
-
-                // quoted values
-                if (val.charCodeAt(0) === 0x22) {
-                    val = val.slice(1, -1)
-                }
-
-                obj[key] = tryDecode(val, dec)
-            }
-
-            index = endIdx + 1
-        }
+        return parsed
     })
 
-    return obj
+    const reduced = parsedCookies.reduce((acc, val) => {
+        return { ...acc, ...val }
+    }, {})
+
+    return reduced
 }
 
 /**
