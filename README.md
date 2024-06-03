@@ -14,6 +14,12 @@ Use signed data as a cookie.
 
 This is designed to work with lamdba functions, eg [via netlify](https://docs.netlify.com/functions/overview/). The examples assume such as the environment.
 
+## install
+
+```sh
+npm i -S @nichoth/session-cookie
+```
+
 ## Environment variables
 The session cookie can be configured through environment variables.
 
