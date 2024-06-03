@@ -17,7 +17,8 @@ export const handler:Handler = async function handler (
     if (ev.httpMethod !== 'GET') return { statusCode: 405 }
 
     const cookies = getCookiesFromEvent(ev)
-    // if (!cookies) throw Error('not cookies!')
+    console.log('****', cookies)
+
     if (cookies) {
         const isOk = verifyCookieFromEvent(ev)
         console.log('**is ok???**', isOk)

@@ -110,48 +110,79 @@ export function parseCookie (incomingCookies:string[], options?:Partial<{
     decode:(s:string)=>string
 }>):Record<string, string> {
     // const str = incomingCookies[0]
-    const obj = {}
-    const dec = options?.decode || decode
+    // const obj = {}
+    // const dec = options?.decode || decode
 
-    incomingCookies.forEach(cookie => {
-        let index = 0
-        while (index < cookie.length) {
-            const eqIdx = cookie.indexOf('=', index)
-
-            // no more cookie pairs
-            if (eqIdx === -1) {
-                break
+    const parsedCookies = incomingCookies.map(cookie => {
+        const parsed = cookie.split(';').map(str => {
+            const split = str.trim().split('=')
+            if (split.length > 1) {
+                // does contain '='
             }
+            return split
+        }).reduce((acc, val) => {
+            acc[val[0]] = val[1] ?? true
+            return acc
+        }, {})
 
-            let endIdx = cookie.indexOf(';', index)
-
-            if (endIdx === -1) {
-                endIdx = cookie.length
-            } else if (endIdx < eqIdx) {
-                // backtrack on prior semicolon
-                index = cookie.lastIndexOf(';', eqIdx - 1) + 1
-                continue
-            }
-
-            const key = cookie.slice(index, eqIdx).trim()
-
-            // only assign once
-            if (obj[key] === undefined) {
-                let val = cookie.slice(eqIdx + 1, endIdx).trim()
-
-                // quoted values
-                if (val.charCodeAt(0) === 0x22) {
-                    val = val.slice(1, -1)
-                }
-
-                obj[key] = tryDecode(val, dec)
-            }
-
-            index = endIdx + 1
-        }
+        return parsed
     })
 
-    return obj
+    return parsedCookies.reduce((acc, val) => {
+        return { ...acc, ...val }
+    }, {})
+
+    // incomingCookies.forEach(cookie => {
+    //     let index = 0
+    //     console.log('aaaaaaaa', cookie)
+    //     console.log('cookie split', cookie.split(';').map(str => {
+    //         const split = str.trim().split('=')
+    //         if (split.length > 1) {
+    //             // does contain '='
+    //         }
+    //         return split
+    //     }).reduce((acc, val) => {
+    //         acc[val[0]] = val[1] ?? true
+    //         return acc
+    //     }, {}))
+
+    //     while (index < cookie.length) {
+    //         const eqIdx = cookie.indexOf('=', index)
+
+    //         // no more cookie pairs
+    //         if (eqIdx === -1) {
+    //             break
+    //         }
+
+    //         let endIdx = cookie.indexOf(';', index)
+
+    //         if (endIdx === -1) {
+    //             endIdx = cookie.length
+    //         } else if (endIdx < eqIdx) {
+    //             // backtrack on prior semicolon
+    //             index = cookie.lastIndexOf(';', eqIdx - 1) + 1
+    //             continue
+    //         }
+
+    //         const key = cookie.slice(index, eqIdx).trim()
+
+    //         // only assign once
+    //         if (obj[key] === undefined) {
+    //             let val = cookie.slice(eqIdx + 1, endIdx).trim()
+
+    //             // quoted values
+    //             if (val.charCodeAt(0) === 0x22) {
+    //                 val = val.slice(1, -1)
+    //             }
+
+    //             obj[key] = tryDecode(val, dec)
+    //         }
+
+    //         index = endIdx + 1
+    //     }
+    // })
+
+    // return obj
 }
 
 /**
@@ -251,20 +282,20 @@ export function verify (
     return compare(signature, sign(data, key))
 }
 
-/**
- * Try decoding a string using a decoding function.
- *
- * @param {string} str
- * @param {function} decode
- * @private
- */
-function tryDecode (str:string, decode:(s:string)=>string):string {
-    try {
-        return decode(str)
-    } catch (err) {
-        return str
-    }
-}
+// /**
+//  * Try decoding a string using a decoding function.
+//  *
+//  * @param {string} str
+//  * @param {function} decode
+//  * @private
+//  */
+// function tryDecode (str:string, decode:(s:string)=>string):string {
+//     try {
+//         return decode(str)
+//     } catch (err) {
+//         return str
+//     }
+// }
 
 /**
  * Patch the response object with signed cookie data.
