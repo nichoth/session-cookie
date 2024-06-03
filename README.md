@@ -26,7 +26,7 @@ The session cookie can be configured through environment variables.
 ### Required
 | Name | Description |
 | --- | --- |
-| `SESSION_COOKIE_SECRET` | Used to sign and validate the session cookie. Must be at least 32 bytes long. See [_"Generating a secret key"_](#generating-a-secret-key) for more information. |
+| `SESSION_COOKIE_SECRET` | Used to sign and validate the session cookie. Must be at least 32 bytes long. See [_"Generate a secret key"_](#generate-a-secret-key) for more information. |
 
 ---
 
