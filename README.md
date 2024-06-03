@@ -157,6 +157,7 @@ the same data but an updated timestamp.
 ```js
 import { Handler, HandlerContext, HandlerEvent } from '@netlify/functions'
 import {
+    parseSession,
     setCookie,
     getCookiesFromEvent,
     verifySessionString,
@@ -229,7 +230,7 @@ export const handler:Handler = async function handler (
 
 ### serialization
 
-The cookie is a string, `signature + base64(JSON.stringify(data))`.
+The cookie is a string, `base64(signature) + base64(JSON.stringify(data))`.
 
 ```js
 const cookieValue = sign(sessionAsJSON, key) +
