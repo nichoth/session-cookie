@@ -1,5 +1,11 @@
 # session cookie
 
+[![types](https://img.shields.io/npm/types/@nichoth/session-cookie?style=flat-square)](./src/index.ts)
+[![module](https://img.shields.io/badge/module-ESM%2FCJS-blue?style=flat-square)](README.md)
+[![semantic versioning](https://img.shields.io/badge/semver-2.0.0-blue?logo=semver&style=flat-square)](https://semver.org/)
+[![license](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
+
+
 Use signed data as a cookie.
 
 * Serialize the cookie in a concise format
