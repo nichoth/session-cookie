@@ -15,7 +15,7 @@ const SESSION_COOKIE_MAX_AGE_SPAN_DEFAULT = (60 * 60 * 24 * 7)
 /**
  * Name to be used for the session cookie if none provided.
  */
-const SESSION_COOKIE_NAME_DEFAULT = 'session'
+export const SESSION_COOKIE_NAME_DEFAULT = 'session'
 
 /**
  * Length of the signature digest, in characters.
@@ -82,11 +82,17 @@ export function verifySessionString (session:string):boolean {
         SIGNATURE_DIGEST_LENGTH
     )
 
-    const data:string = session.substring(SIGNATURE_DIGEST_LENGTH)
+    let data:string = session.substring(SIGNATURE_DIGEST_LENGTH)
+    data = Buffer.from(data, 'base64').toString('utf-8')
 
     return verify(getSecretKey(), data, signature)
 }
 
+/**
+ * This depends on the signature being a specific length.
+ *
+ * The cookie is serialized like `signature + base64(JSON.stringify(data))`
+ */
 export function parseSession<T=object> (encodedSession:string):T {
     const data:string = encodedSession.substring(SIGNATURE_DIGEST_LENGTH)
     const buf = Buffer.from(data, 'base64')
@@ -198,19 +204,11 @@ export function createCookie (newSessionData:object, secretKey?:string) {
     const key = secretKey || getSecretKey()
     // Sign session data and add it to `Set-Cookie`.
     const sessionAsJSON = stringify(newSessionData)
-    console.log('session as json', sessionAsJSON)
-
     // session=[signature][data];
 
     // sig + base64SessionValue
     const cookieValue = sign(sessionAsJSON, key) +
         Buffer.from(sessionAsJSON, 'utf-8').toString('base64')
-
-    const sesStr = Buffer.from(sessionAsJSON).toString('base64')
-    console.log('**sesStr**', sesStr)
-    const decoded = Buffer.from(sesStr, 'base64').toString('utf-8')
-    console.log('**decoded**', decoded)
-    console.log('**cookievalue**', cookieValue)
 
     return cookieValue
 }
@@ -278,7 +276,7 @@ function tryDecode (str:string, decode:(s:string)=>string):string {
 export function setCookie (
     response:HandlerResponse,
     ctx:HandlerContext,
-    newData?:Record<string, string>
+    newData:Record<string, string>
 ):HandlerResponse {
     if (!response.multiValueHeaders) response.multiValueHeaders = {}
     if (!response.multiValueHeaders['Set-Cookie']) {

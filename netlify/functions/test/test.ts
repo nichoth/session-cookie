@@ -5,6 +5,7 @@ import {
     getCookiesFromEvent,
     parseCookie,
     verifyCookieFromEvent,
+    verifySessionString,
     parseSession
 } from '../../../src/index.js'
 import crypto from 'crypto'
@@ -18,21 +19,44 @@ export const handler:Handler = async function handler (
     const cookies = getCookiesFromEvent(ev)
     // if (!cookies) throw Error('not cookies!')
     if (cookies) {
-        console.log('**cookie from event**', cookies)
-        const parsed = parseCookie(cookies)
-        console.log('**parsed**', parsed)
+        const isOk = verifyCookieFromEvent(ev)
+        console.log('**is ok???**', isOk)
 
-        console.log('parsed.session', parsed.session)
-        console.log('**session parsed**', parseSession(parsed.session))
+        const cookieMap = parseCookie(cookies)
+        console.log('**cookiemap**', cookieMap)
+        const { session } = cookieMap
+        const parsedSession = parseSession<{ identifier }>(session)
+        console.log('**parsed session**', parsedSession)
+
+        const isOkAsString = verifySessionString(session)
+        console.log('ok from a string????', isOkAsString)
+
+        if (!isOkAsString) {
+            return { statusCode: 401 }
+        }
+
+        const { identifier } = parsedSession
+
+        // if there is already a session, then keep using it
+        if (identifier) {
+            const response = {
+                statusCode: 200,
+                body: JSON.stringify({ hello: 'hello' })
+            }
+
+            setCookie(response, ctx, { identifier, ts: '' + Date.now() })
+
+            return response
+        }
     }
+
+    // __the existing session ID__
+    // 39f8a712ad8e6816567e61d065f208e4
 
     const response = {
         statusCode: 200,
         body: JSON.stringify({ hello: 'hello' })
     }
-
-    const isOk = verifyCookieFromEvent(ev)
-    console.log('**is ok???**', isOk)
 
     const identifier = crypto.randomBytes(16).toString('hex')
 

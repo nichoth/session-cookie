@@ -31,16 +31,11 @@ const apiPath = 'http://localhost:9999/.netlify/functions'
 test('call netlify function', async t => {
     const res = await ky.get(apiPath + '/test', {})
 
-    // this is pretending to be a browser,
-    // so we are not allowed to set cookies here
-
     const parsedCookie = parseCookie(res.headers.getSetCookie())
+    console.log('**parsed cookie**', parsedCookie)
+    console.log('*****', res.headers.getSetCookie())
     const session = parseSession<{ identifier }>(parsedCookie.session)
-    console.log('parsed cookie session, as string', parsedCookie.session)
-    console.log('the session ', session)
-    t.ok(verifySessionString(parsedCookie.session), 'should validate a cookie')
-    t.ok(session, 'got a session')
+    t.ok(verifySessionString(parsedCookie.session),
+        'should verify a cookie returned from the server')
     t.ok(session.identifier, 'should have the expected data in session')
-
-    // t.equal(res.headers.getSetCookie()[0], 'abc=def')
 })
