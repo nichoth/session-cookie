@@ -33,7 +33,14 @@ test('call netlify function', async t => {
 
     const parsedCookie = parseCookie(res.headers.getSetCookie())
     console.log('**parsed cookie**', parsedCookie)
-    console.log('*****', res.headers.getSetCookie())
+    const { session: _session, ..._parsed } = parsedCookie
+    t.deepEqual(_parsed, {
+        'Max-Age': '604800',
+        Path: '/',
+        HttpOnly: true,
+        Secure: true,
+        SameSite: 'Lax'
+    }, 'The parsed cookie should have expected properties')
     const session = parseSession<{ identifier }>(parsedCookie.session)
     t.ok(verifySessionString(parsedCookie.session),
         'should verify a cookie returned from the server')
