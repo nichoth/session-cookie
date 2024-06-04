@@ -141,6 +141,8 @@ const SESSION_COOKIE_MAX_AGE_SPAN_DEFAULT = (60 * 60 * 24 * 7)
 
 ## The serialized cookie
 
+The cookie is a string, `base64(signature) + base64(JSON.stringify(data))`.
+
 ```
 'session=nYiMr6Ya_83iC-XN-nmxOEk6AE0eyJpZGVudGlmaWVyIjoiZjhjNWZkNzM4MDcwMTlkNTUzZTc2ZjY1YzBhYTdlZjIifQ%3D%3D; Max-Age=604800; Path=/; HttpOnly; Secure; SameSite=Lax'
 ```
@@ -159,6 +161,7 @@ import { Handler, HandlerContext, HandlerEvent } from '@netlify/functions'
 import {
     parseSession,
     setCookie,
+    parseCookie,
     getCookiesFromEvent,
     verifySessionString,
     SESSION_COOKIE_NAME_DEFAULT
@@ -237,13 +240,23 @@ const cookieValue = sign(sessionAsJSON, key) +
     Buffer.from(sessionAsJSON, 'utf-8').toString('base64')
 ```
 
+```
+'session=nYiMr6Ya_83iC-XN-nmxOEk6AE0eyJpZGVudGlmaWVyIjoiZjhjNWZkNzM4MDcwMTlkNTUzZTc2ZjY1YzBhYTdlZjIifQ%3D%3D; Max-Age=604800; Path=/; HttpOnly; Secure; SameSite=Lax'
+```
+
 ### check the cookies server-side
 
 This happens in a lambda function.
 
 ```js
 import { Handler, HandlerContext, HandlerEvent } from '@netlify/functions'
-import { getCookiesFromEvent } from '@nichoth/session-cookie'
+import {
+    verifyCookieFromEvent
+    getCookiesFromEvent,
+    SESSION_COOKIE_NAME_DEFAULT,
+    verifySessionString,
+    parseSession
+} from '@nichoth/session-cookie'
 
 export const handler:Handler = async function handler (
     ev:HandlerEvent,
@@ -253,7 +266,18 @@ export const handler:Handler = async function handler (
 
     // if there is an incoming cookie, verify it
     if (cookies) {
-        const isOk = verifyCookieFromEvent(ev)
+        const cookieMap = parseCookie(res.headers.getSetCookie())
+        const session = cookieMap[SESSION_COOKIE_NAME_DEFAULT]
+
+        // can look at the session data
+        const parsedSession = parseSession<{ identifier }>(session)
+
+        // check the session string
+        const isSessionOk = verifySessionString(session)
+        if (!isSessionOk) return { statusCode: 401 }
+
+        // or, pass in the event
+        const isOk = verifyCookiesFromEvent(ev)
         if (!isOk) return { statusCode: 401 }
     } else {
         // there is no cookie here
