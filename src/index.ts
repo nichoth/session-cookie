@@ -109,7 +109,7 @@ export function parseSession<T=object> (encodedSession:string):T {
 export function parseCookie (
     incomingCookies:string[],
     _decode?:(s:string)=>string
-):Record<string, string> {
+):(Record<string, string> & { session:string }) {
     const dec = _decode || decode
 
     const parsedCookies = incomingCookies.map(cookie => {
@@ -128,7 +128,7 @@ export function parseCookie (
         return { ...acc, ...val }
     }, {})
 
-    return reduced
+    return reduced as (Record<string, string> & { session:string })
 }
 
 /**
