@@ -28,6 +28,17 @@ The session cookie can be configured through environment variables.
 | --- | --- |
 | `SESSION_COOKIE_SECRET` | Used to sign and validate the session cookie. Must be at least 32 bytes long. See [_"Generate a secret key"_](#generate-a-secret-key) for more information. |
 
+## Optional
+| Name | Description |
+| --- | --- |
+| `SESSION_COOKIE_NAME` | Name used by the session cookie. Must only contain ASCII-compatible characters and no whitespace. Defaults to `"session"`. |
+| `SESSION_COOKIE_HTTPONLY` | The session cookie bears the `HttpOnly` attribute by default. Set this environment variable to `"0"` to remove it. | 
+| `SESSION_COOKIE_SECURE` | The session cookie bears the `Secure` attribute by default. Set this environment variable to `"0"` to remove it. | 
+| `SESSION_COOKIE_SAMESITE` | Can be `"Strict"`, `"None"` or `"Lax"`. Defaults to `"Lax"` if not set. | 
+| `SESSION_COOKIE_MAX_AGE_SPAN` | Specifies, in second, how long the cookie should be valid for. Defaults to `604800` _(7 days)_ if not set. |
+| `SESSION_COOKIE_DOMAIN` | Can be used to specify a domain for the session cookie. |
+| `SESSION_COOKIE_PATH` | Can be used to specify a path for the session cookie. Defaults to `/` if not set. |
+
 ---
 
 ## Generate a secret key
