@@ -43,7 +43,7 @@ The session cookie can be configured through environment variables.
 
 ## Generate a secret key
 Session cookies are signed using [HMAC SHA256](https://en.wikipedia.org/wiki/HMAC), which requires using a secret key of at least 32 bytes of length.
-This one-liner can be used to generate a random key, once this library is installed:
+This one-liner can be used to generate a random key, once this library is installed.
 
 ### after installing as a dependency
 
