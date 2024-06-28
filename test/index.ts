@@ -28,10 +28,12 @@ test('verify an invalid signature', t => {
 })
 
 const apiPath = 'http://localhost:9999/.netlify/functions'
+let cookie:string[]
 test('call netlify function', async t => {
     const res = await ky.get(apiPath + '/test', {})
 
-    const parsedCookie = parseCookie(res.headers.getSetCookie())
+    cookie = res.headers.getSetCookie()
+    const parsedCookie = parseCookie(cookie)
     console.log('**parsed cookie**', parsedCookie)
     const { session: _session, ..._parsed } = parsedCookie
     t.deepEqual(_parsed, {
@@ -45,4 +47,18 @@ test('call netlify function', async t => {
     t.ok(verifySessionString(parsedCookie.session),
         'should verify a cookie returned from the server')
     t.ok(session.identifier, 'should have the expected data in session')
+})
+
+test('rm cookie', async t => {
+    const res = await ky.get(apiPath + '/delete', {
+        credentials: 'include',
+        headers: {
+            Cookie: cookie.join('; ')
+        }
+    })
+    const parsedCookie = parseCookie(res.headers.getSetCookie())
+    t.ok(res, 'got a response')
+    t.equal(res.headers.getSetCookie().length, 0, 'should remove the cookie')
+    t.equal(Object.keys(parsedCookie).length, 0,
+        "parse doesn't throw; returns an empty object")
 })
