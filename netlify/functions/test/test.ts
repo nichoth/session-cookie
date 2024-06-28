@@ -15,7 +15,7 @@ export const handler:Handler = async function handler (
     ctx:HandlerContext
 ) {
     const cookies = getCookiesFromEvent(ev)
-    console.log('**** cookies', cookies)
+    console.log('**** cookies ****', cookies)
 
     if (cookies) {
         const isOk = verifyCookieFromEvent(ev)

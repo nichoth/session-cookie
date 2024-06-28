@@ -147,7 +147,7 @@ function getCookieName ():string {
 
     // Try to grab session cookie name from `SESSION_COOKIE_NAME` if available.
     if (typeof nameFromEnv === 'string') {
-    const regex = /[A-Za-z0-9\!\#\$\%\&\'\*\+\-\.\^\_\`\|\~]+/g // eslint-disable-line
+        const regex = /[A-Za-z0-9\!\#\$\%\&\'\*\+\-\.\^\_\`\|\~]+/g // eslint-disable-line
         const check = nameFromEnv.match(regex)
 
         if (nameFromEnv.length < 1) {
@@ -282,6 +282,20 @@ export function setCookie (
         .push(serializeCookie(cookieName, cookieValue, getCookieOptions()))
 
     return response
+}
+
+export function rmCookie (
+    response:HandlerResponse
+) {
+    if (!response.multiValueHeaders) {
+        response.multiValueHeaders = {}
+    }
+    if (!response.multiValueHeaders['Set-Cookie']) {
+        response.multiValueHeaders['Set-Cookie'] = []
+    }
+
+    (response.multiValueHeaders['Set-Cookie'] as (string|boolean|void)[])
+        .push(`${getCookieName()}=deleted; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`)
 }
 
 /**
