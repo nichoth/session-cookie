@@ -284,9 +284,12 @@ export function setCookie (
     return response
 }
 
+/**
+ * Patch and return the given handler response.
+ */
 export function rmCookie (
     response:HandlerResponse
-) {
+):HandlerResponse {
     if (!response.multiValueHeaders) {
         response.multiValueHeaders = {}
     }
@@ -296,6 +299,8 @@ export function rmCookie (
 
     (response.multiValueHeaders['Set-Cookie'] as (string|boolean|void)[])
         .push(`${getCookieName()}=deleted; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`)
+
+    return response
 }
 
 /**
