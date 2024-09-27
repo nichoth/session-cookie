@@ -48,7 +48,7 @@ This one-liner can be used to generate a random key, once this library is instal
 ### after installing as a dependency
 
 ```bash
-node -e "console.log(require('@nichoth/session-cookie').generateSecretKey()"
+node -e "console.log(require('@nichoth/session-cookie').generateSecretKey())"
 ```
 
 ## API
